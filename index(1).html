@@ -1,0 +1,1508 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>AR กระสุนวงจักรพิชิตประวัติศาสตร์</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700;800&family=Prompt:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+  <!-- MediaPipe Hands -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+  <!-- Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+
+  <style>
+    :root {
+      --cyan: #00f0ff;
+      --blue: #38bdf8;
+      --gold: #facc15;
+      --danger: #f43f5e;
+      --ink: #0f172a;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+
+    body {
+      font-family: "Prompt", sans-serif;
+      background:
+        radial-gradient(circle at 20% 15%, rgba(0,240,255,.12), transparent 30%),
+        radial-gradient(circle at 80% 80%, rgba(59,130,246,.13), transparent 30%),
+        #020617;
+      color: white;
+    }
+
+    .font-kanit { font-family: "Kanit", sans-serif; }
+
+    #app {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #020617;
+    }
+
+    #camera {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+      background: #07111d;
+    }
+
+    #gameCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    .screen-vignette {
+      position: absolute;
+      inset: 0;
+      z-index: 6;
+      pointer-events: none;
+      background:
+        linear-gradient(180deg, rgba(2,6,23,.72) 0%, rgba(2,6,23,.06) 20%, rgba(2,6,23,.04) 65%, rgba(2,6,23,.78) 100%);
+    }
+
+    .hud {
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .hud button, .hud .clickable { pointer-events: auto; }
+
+    .glass {
+      background: rgba(2, 6, 23, .60);
+      border: 1px solid rgba(255,255,255,.14);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 12px 40px rgba(0,0,0,.28);
+    }
+
+    .energy-bar {
+      height: 7px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.12);
+      overflow: hidden;
+    }
+
+    .energy-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #06b6d4, #00f0ff, #facc15);
+      box-shadow: 0 0 18px rgba(0,240,255,.7);
+      transition: width .12s linear;
+    }
+
+    .modal-backdrop {
+      position: absolute;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(2,6,23,.78);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .modal-card {
+      width: min(720px, 100%);
+      max-height: 92vh;
+      overflow: auto;
+      border-radius: 30px;
+      background: linear-gradient(145deg, rgba(15,23,42,.97), rgba(15,23,42,.90));
+      border: 1px solid rgba(0,240,255,.28);
+      box-shadow: 0 30px 100px rgba(0,0,0,.55), 0 0 60px rgba(0,240,255,.08);
+    }
+
+    .hidden-modal { display: none; }
+
+    .ninja-orb {
+      width: 110px;
+      height: 110px;
+      margin: 0 auto;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background:
+        radial-gradient(circle at 40% 35%, #e0ffff 0 5%, #00f0ff 14%, #0284c7 40%, #172554 72%, #020617 100%);
+      box-shadow:
+        0 0 20px #00f0ff,
+        0 0 55px rgba(0,240,255,.55),
+        inset 0 0 25px rgba(255,255,255,.25);
+      animation: orbPulse 1.3s infinite ease-in-out;
+    }
+
+    @keyframes orbPulse {
+      0%,100% { transform: scale(.96); }
+      50% { transform: scale(1.05); }
+    }
+
+    .tip {
+      border: 1px solid rgba(255,255,255,.1);
+      background: rgba(255,255,255,.045);
+      border-radius: 18px;
+    }
+
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: #ef4444;
+      box-shadow: 0 0 12px #ef4444;
+    }
+
+    .status-dot.live {
+      background: #22c55e;
+      box-shadow: 0 0 12px #22c55e;
+    }
+
+    .score-pop {
+      position: absolute;
+      z-index: 30;
+      font-family: "Kanit", sans-serif;
+      font-weight: 800;
+      font-size: 28px;
+      pointer-events: none;
+      text-shadow: 0 3px 16px rgba(0,0,0,.7);
+      animation: scoreUp 900ms ease-out forwards;
+    }
+
+    @keyframes scoreUp {
+      0% { opacity: 0; transform: translate(-50%, 10px) scale(.7); }
+      20% { opacity: 1; transform: translate(-50%, 0) scale(1.12); }
+      100% { opacity: 0; transform: translate(-50%, -80px) scale(1); }
+    }
+
+    .scanline {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      top: 0;
+      z-index: 8;
+      pointer-events: none;
+      background: linear-gradient(90deg, transparent, rgba(0,240,255,.35), transparent);
+      animation: scan 5s linear infinite;
+      opacity: .45;
+    }
+
+    @keyframes scan {
+      from { transform: translateY(-20px); }
+      to { transform: translateY(100vh); }
+    }
+
+    .small-scroll::-webkit-scrollbar { width: 6px; }
+    .small-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 10px; }
+
+    @media (max-width: 640px) {
+      .desktop-only { display: none; }
+      .modal-card { border-radius: 22px; }
+      .hud-top { gap: 6px; }
+    }
+  </style>
+</head>
+
+<body>
+<div id="app">
+
+  <video id="camera" autoplay playsinline muted></video>
+  <canvas id="gameCanvas"></canvas>
+  <div class="screen-vignette"></div>
+  <div class="scanline"></div>
+
+  <!-- HUD -->
+  <div class="hud">
+    <div class="absolute top-0 left-0 right-0 p-3 md:p-5">
+      <div class="hud-top flex items-start justify-between gap-3">
+
+        <div class="glass rounded-2xl px-3 py-2 md:px-5 md:py-3">
+          <div class="flex items-center gap-2">
+            <div class="status-dot" id="cameraDot"></div>
+            <div>
+              <div class="text-[10px] md:text-xs text-cyan-200/80 uppercase tracking-wider">AR HISTORY MODE</div>
+              <div class="font-kanit text-sm md:text-lg font-bold">กระสุนวงจักรพิชิตประวัติศาสตร์</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass rounded-2xl px-3 py-2 md:px-5 md:py-3 min-w-[155px] md:min-w-[220px]">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <div class="text-[10px] text-slate-300">SCORE</div>
+              <div id="scoreText" class="font-kanit text-xl md:text-3xl font-extrabold">0</div>
+            </div>
+            <div class="text-right">
+              <div class="text-[10px] text-slate-300">MISSION</div>
+              <div><span id="correctText" class="font-bold text-cyan-300">0</span><span class="text-slate-400"> / 8</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-2 flex justify-center">
+        <div class="glass rounded-full px-4 py-2 flex items-center gap-3">
+          <i class="fa-solid fa-fire text-orange-300"></i>
+          <span class="text-xs md:text-sm">COMBO</span>
+          <span id="comboText" class="font-kanit font-extrabold text-lg text-yellow-300">0x</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Question banner -->
+    <div class="absolute top-[112px] md:top-[130px] left-1/2 -translate-x-1/2 w-[calc(100%-24px)] max-w-4xl">
+      <div class="glass rounded-2xl px-4 py-3 md:px-6 md:py-4">
+        <div class="text-[10px] md:text-xs text-cyan-300 font-semibold mb-1">
+          <i class="fa-solid fa-scroll mr-1"></i> ภารกิจคำถาม
+        </div>
+        <div id="questionText" class="font-kanit text-sm md:text-xl font-semibold leading-relaxed text-white">
+          กำลังเตรียมภารกิจ...
+        </div>
+        <div id="hintText" class="mt-1 text-[10px] md:text-xs text-slate-300">
+          หงายฝ่ามือ → สร้างกระสุนวงจักร → เล็งการ์ดที่เป็นคำตอบ
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom guide -->
+    <div class="absolute bottom-3 md:bottom-5 left-1/2 -translate-x-1/2 w-[calc(100%-24px)] max-w-3xl">
+      <div class="glass rounded-2xl px-4 py-3 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs md:text-sm">
+        <span><i class="fa-regular fa-hand mr-1 text-cyan-300"></i> หงายมือ</span>
+        <span><i class="fa-solid fa-crosshairs mr-1 text-yellow-300"></i> เล็งคำตอบ</span>
+        <span><i class="fa-solid fa-bolt mr-1 text-cyan-300"></i> ค้าง 1 วิ</span>
+        <span><i class="fa-solid fa-burst mr-1 text-pink-300"></i> ยิง!</span>
+      </div>
+    </div>
+
+    <button id="pauseBtn"
+      class="clickable absolute right-3 md:right-5 bottom-[74px] md:bottom-[84px] glass w-11 h-11 rounded-full hover:bg-white/10 transition"
+      title="หยุดเกม">
+      <i class="fa-solid fa-pause"></i>
+    </button>
+  </div>
+
+  <!-- Start Modal -->
+  <div id="startModal" class="modal-backdrop">
+    <div class="modal-card p-5 md:p-8">
+      <div class="text-center">
+        <div class="ninja-orb mb-5">
+          <i class="fa-solid fa-user-ninja text-4xl"></i>
+        </div>
+
+        <div class="text-cyan-300 text-xs md:text-sm font-semibold tracking-widest">GRADE 6 • HISTORY • AR</div>
+        <h1 class="font-kanit text-3xl md:text-5xl font-extrabold mt-1 leading-tight">
+          AR กระสุนวงจักร<br>
+          <span class="text-cyan-300">พิชิตประวัติศาสตร์</span>
+        </h1>
+        <p class="text-slate-300 mt-3 text-sm md:text-base">
+          ภารกิจเรียนรู้เรื่อง <b class="text-white">“ประเทศเพื่อนบ้านของเรา”</b>
+          ผ่านการเล็งคำตอบด้วยมือแบบ AR
+        </p>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-3 mt-6">
+        <div class="tip p-4 text-center">
+          <div class="text-2xl mb-2">🖐️</div>
+          <div class="font-kanit font-bold">1. หงายมือ</div>
+          <div class="text-xs text-slate-400 mt-1">เปิดฝ่ามือให้กล้องเห็น</div>
+        </div>
+        <div class="tip p-4 text-center">
+          <div class="text-2xl mb-2">🎯</div>
+          <div class="font-kanit font-bold">2. เล็งคำตอบ</div>
+          <div class="text-xs text-slate-400 mt-1">นำพลังไปทับการ์ดที่คิดว่าถูก</div>
+        </div>
+        <div class="tip p-4 text-center">
+          <div class="text-2xl mb-2">💥</div>
+          <div class="font-kanit font-bold">3. ชาร์จ 1 วิ</div>
+          <div class="text-xs text-slate-400 mt-1">ล็อกเป้าแล้วรอให้เต็ม</div>
+        </div>
+      </div>
+
+      <div class="mt-5 rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-4">
+        <div class="flex gap-3">
+          <i class="fa-solid fa-lightbulb text-yellow-300 mt-1"></i>
+          <div class="text-xs md:text-sm text-slate-300 leading-relaxed">
+            การ์ดทุกใบใช้ดีไซน์เหมือนกัน ไม่มีสีหรือรูปร่างบอกคำตอบ
+            <b class="text-white">ต้องอ่านคำถามและวิเคราะห์คำตอบด้วยตนเอง</b>
+          </div>
+        </div>
+      </div>
+
+      <button id="startBtn"
+        class="mt-6 w-full rounded-2xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-kanit font-extrabold text-lg py-4 transition shadow-lg shadow-cyan-400/20">
+        <i class="fa-solid fa-camera mr-2"></i>
+        เปิดกล้องและเริ่มภารกิจ
+      </button>
+
+      <div id="cameraError" class="hidden mt-3 text-center text-sm text-rose-300">
+        ไม่สามารถเปิดกล้องได้ กรุณาอนุญาต Camera แล้วเปิดผ่าน HTTPS หรือ localhost
+      </div>
+    </div>
+  </div>
+
+  <!-- Pause Modal -->
+  <div id="pauseModal" class="modal-backdrop hidden-modal">
+    <div class="modal-card p-7 text-center max-w-md">
+      <div class="text-5xl mb-4">⏸️</div>
+      <h2 class="font-kanit text-3xl font-bold">พักภารกิจ</h2>
+      <p class="text-slate-400 mt-2">พร้อมแล้วกดเล่นต่อได้เลย</p>
+      <button id="resumeBtn" class="mt-6 w-full rounded-2xl bg-cyan-400 text-slate-950 py-3 font-kanit font-bold">
+        <i class="fa-solid fa-play mr-2"></i> เล่นต่อ
+      </button>
+    </div>
+  </div>
+
+  <!-- Victory Modal -->
+  <div id="victoryModal" class="modal-backdrop hidden-modal">
+    <div class="modal-card p-6 md:p-8 text-center">
+      <div class="text-yellow-300 text-5xl mb-2">
+        <i class="fa-solid fa-trophy"></i>
+      </div>
+      <div class="text-cyan-300 text-sm tracking-widest">MISSION COMPLETE</div>
+      <h2 class="font-kanit text-4xl md:text-5xl font-extrabold mt-1">เก่งมาก! 🎉</h2>
+      <p class="text-slate-300 mt-2">ภารกิจประเทศเพื่อนบ้านสำเร็จแล้ว</p>
+
+      <div class="flex justify-center gap-2 my-6 text-4xl text-yellow-300">
+        <i class="fa-solid fa-star"></i>
+        <i class="fa-solid fa-star"></i>
+        <i class="fa-solid fa-star"></i>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div class="tip p-4">
+          <div class="text-xs text-slate-400">คะแนน</div>
+          <div id="finalScore" class="font-kanit text-2xl font-extrabold text-cyan-300">0</div>
+        </div>
+        <div class="tip p-4">
+          <div class="text-xs text-slate-400">ตอบถูก</div>
+          <div class="font-kanit text-2xl font-extrabold">8/8</div>
+        </div>
+        <div class="tip p-4">
+          <div class="text-xs text-slate-400">Combo สูงสุด</div>
+          <div id="maxCombo" class="font-kanit text-2xl font-extrabold text-yellow-300">0x</div>
+        </div>
+      </div>
+
+      <div id="learningSummary" class="mt-5 rounded-2xl bg-white/5 border border-white/10 p-4 text-left text-sm text-slate-300"></div>
+
+      <button id="restartBtn" class="mt-5 w-full rounded-2xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 py-4 font-kanit font-extrabold text-lg">
+        <i class="fa-solid fa-rotate-right mr-2"></i> เล่นใหม่
+      </button>
+    </div>
+  </div>
+
+  <!-- Browser warning -->
+  <div id="browserModal" class="modal-backdrop hidden-modal">
+    <div class="modal-card p-7 max-w-md text-center">
+      <i class="fa-solid fa-globe text-cyan-300 text-5xl"></i>
+      <h2 class="font-kanit text-2xl font-bold mt-4">ต้องเปิดผ่านเว็บเซิร์ฟเวอร์</h2>
+      <p class="text-slate-300 text-sm mt-2 leading-relaxed">
+        กล้องของเบราว์เซอร์มักไม่ทำงานเมื่อเปิดไฟล์ด้วย <b>file://</b>
+        แนะนำให้ใช้ VS Code + Live Server หรือ localhost
+      </p>
+      <button id="browserOk" class="mt-5 w-full rounded-2xl bg-cyan-400 text-slate-950 py-3 font-kanit font-bold">
+        เข้าใจแล้ว
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ============================================================
+  // DATA: ประเทศเพื่อนบ้านของไทย — ระดับ ป.6
+  // หมายเหตุ: ปรับชุดคำถามให้ตรงกับธีมประวัติศาสตร์/ภูมิศาสตร์
+  // ============================================================
+  const QUESTION_BANK = [
+    {
+      q: "ข้อใดคือประเทศในเอเชียตะวันออกเฉียงใต้ที่ไม่มีทางออกสู่ทะเล?",
+      answer: "ลาว",
+      options: ["เมียนมา", "ลาว", "เวียดนาม", "กัมพูชา"],
+      fact: "ประเทศลาวเป็นประเทศเดียวในเอเชียตะวันออกเฉียงใต้ที่ไม่มีทางออกสู่ทะเล"
+    },
+    {
+      q: "ประเทศไทยมีพรมแดนทางบกติดกับประเทศใดทางทิศตะวันตก?",
+      answer: "เมียนมา",
+      options: ["กัมพูชา", "ลาว", "เมียนมา", "เวียดนาม"],
+      fact: "เมียนมาอยู่ทางทิศตะวันตกและทิศตะวันตกเฉียงเหนือของประเทศไทย"
+    },
+    {
+      q: "ประเทศใดอยู่ทางทิศตะวันออกของประเทศไทยและมีกรุงพนมเปญเป็นเมืองหลวง?",
+      answer: "กัมพูชา",
+      options: ["กัมพูชา", "ลาว", "เมียนมา", "มาเลเซีย"],
+      fact: "กัมพูชามีกรุงพนมเปญเป็นเมืองหลวง"
+    },
+    {
+      q: "ประเทศใดมีเมืองหลวงชื่อเวียงจันทน์?",
+      answer: "ลาว",
+      options: ["เวียดนาม", "ลาว", "กัมพูชา", "เมียนมา"],
+      fact: "เวียงจันทน์เป็นเมืองหลวงของสาธารณรัฐประชาธิปไตยประชาชนลาว"
+    },
+    {
+      q: "ประเทศใดมีเมืองหลวงชื่อฮานอย?",
+      answer: "เวียดนาม",
+      options: ["เวียดนาม", "ลาว", "กัมพูชา", "มาเลเซีย"],
+      fact: "ฮานอยเป็นเมืองหลวงของเวียดนาม"
+    },
+    {
+      q: "ข้อใดเป็นประเทศเพื่อนบ้านของไทยที่อยู่ทางทิศตะวันออกเฉียงเหนือ?",
+      answer: "ลาว",
+      options: ["ลาว", "เมียนมา", "มาเลเซีย", "กัมพูชา"],
+      fact: "ลาวมีพรมแดนติดกับประเทศไทยบริเวณภาคเหนือและภาคตะวันออกเฉียงเหนือ"
+    },
+    {
+      q: "ประเทศไทยมีพรมแดนทางบกติดกับประเทศใดทางทิศใต้?",
+      answer: "มาเลเซีย",
+      options: ["ลาว", "กัมพูชา", "มาเลเซีย", "เวียดนาม"],
+      fact: "ประเทศไทยมีพรมแดนทางบกติดกับมาเลเซียทางภาคใต้"
+    },
+    {
+      q: "ประเทศใดเคยใช้ชื่อว่า “พม่า” ในภาษาไทยมาเป็นเวลานาน?",
+      answer: "เมียนมา",
+      options: ["เมียนมา", "ลาว", "กัมพูชา", "มาเลเซีย"],
+      fact: "ชื่อประเทศภาษาไทยที่ใช้ในปัจจุบันคือเมียนมา"
+    },
+    {
+      q: "แม่น้ำโขงมีความสำคัญต่อประเทศไทยและประเทศเพื่อนบ้านหลายประเทศ ข้อใดกล่าวถูกต้อง?",
+      answer: "ไหลผ่านหรือเป็นพรมแดนของหลายประเทศ",
+      options: ["อยู่เฉพาะในไทย", "ไหลผ่านหรือเป็นพรมแดนของหลายประเทศ", "อยู่เฉพาะในลาว", "เป็นทะเลสาบ"],
+      fact: "แม่น้ำโขงเป็นแม่น้ำสายสำคัญของเอเชียตะวันออกเฉียงใต้"
+    },
+    {
+      q: "ข้อใดเป็นประเทศสมาชิกอาเซียนและมีพรมแดนติดประเทศไทย?",
+      answer: "กัมพูชา",
+      options: ["ญี่ปุ่น", "กัมพูชา", "เกาหลีใต้", "จีน"],
+      fact: "กัมพูชาเป็นหนึ่งในประเทศสมาชิกอาเซียนและมีพรมแดนติดประเทศไทย"
+    },
+    {
+      q: "ข้อใดจับคู่ประเทศกับเมืองหลวงได้ถูกต้อง?",
+      answer: "ลาว — เวียงจันทน์",
+      options: ["ลาว — เวียงจันทน์", "กัมพูชา — ฮานอย", "เวียดนาม — พนมเปญ", "เมียนมา — กัวลาลัมเปอร์"],
+      fact: "ลาวมีเมืองหลวงคือเวียงจันทน์"
+    },
+    {
+      q: "ประเทศใดมีเมืองหลวงชื่อเนปยีดอ?",
+      answer: "เมียนมา",
+      options: ["เมียนมา", "กัมพูชา", "ลาว", "เวียดนาม"],
+      fact: "เนปยีดอเป็นเมืองหลวงของเมียนมา"
+    },
+    {
+      q: "ข้อใดเป็นประเทศที่มีพรมแดนทางบกติดกับไทย?",
+      answer: "กัมพูชา",
+      options: ["อินโดนีเซีย", "กัมพูชา", "ฟิลิปปินส์", "บรูไน"],
+      fact: "กัมพูชามีพรมแดนทางบกติดกับประเทศไทย"
+    },
+    {
+      q: "ประเทศใดมีกรุงกัวลาลัมเปอร์เป็นเมืองหลวง?",
+      answer: "มาเลเซีย",
+      options: ["มาเลเซีย", "ลาว", "เมียนมา", "กัมพูชา"],
+      fact: "มาเลเซียมีกรุงกัวลาลัมเปอร์เป็นเมืองหลวง"
+    },
+    {
+      q: "ข้อใดเป็นประเทศที่มีวัฒนธรรมและประวัติศาสตร์เชื่อมโยงกับภาคตะวันออกเฉียงเหนือของไทยอย่างใกล้ชิด?",
+      answer: "ลาว",
+      options: ["ลาว", "ญี่ปุ่น", "ฟิลิปปินส์", "อินโดนีเซีย"],
+      fact: "ไทยและลาวมีความสัมพันธ์ทางประวัติศาสตร์ วัฒนธรรม ภาษา และวิถีชีวิตในหลายพื้นที่"
+    },
+    {
+      q: "ปราสาทนครวัดเป็นโบราณสถานสำคัญของประเทศใด?",
+      answer: "กัมพูชา",
+      options: ["ลาว", "กัมพูชา", "เมียนมา", "เวียดนาม"],
+      fact: "นครวัดตั้งอยู่ในประเทศกัมพูชาและเป็นมรดกโลก"
+    },
+    {
+      q: "ข้อใดเป็นประเทศเพื่อนบ้านทางทะเลของไทย แต่ไม่มีพรมแดนทางบกติดไทย?",
+      answer: "เวียดนาม",
+      options: ["ลาว", "กัมพูชา", "เวียดนาม", "เมียนมา"],
+      fact: "ไทยกับเวียดนามอยู่ใกล้กันในภูมิภาคและมีความสัมพันธ์ทางทะเล แต่ไม่มีพรมแดนทางบกติดกัน"
+    },
+    {
+      q: "ประเทศไทยและลาวมีแม่น้ำสายใดเป็นส่วนหนึ่งของแนวพรมแดนในหลายช่วง?",
+      answer: "แม่น้ำโขง",
+      options: ["แม่น้ำเจ้าพระยา", "แม่น้ำโขง", "แม่น้ำแยงซี", "แม่น้ำสินธุ"],
+      fact: "แม่น้ำโขงเป็นแนวพรมแดนระหว่างไทยกับลาวในหลายพื้นที่"
+    },
+    {
+      q: "ข้อใดเป็นลักษณะสำคัญของ “ประเทศเพื่อนบ้าน” ของไทย?",
+      answer: "มีพรมแดนหรือความสัมพันธ์ใกล้ชิดกับไทย",
+      options: ["ต้องอยู่ในทวีปเดียวกันเท่านั้น", "มีพรมแดนหรือความสัมพันธ์ใกล้ชิดกับไทย", "ต้องมีภาษาเดียวกับไทย", "ต้องมีเมืองหลวงติดทะเล"],
+      fact: "คำว่าประเทศเพื่อนบ้านใช้เรียกประเทศใกล้เคียงที่มีความสัมพันธ์กับไทย"
+    },
+    {
+      q: "ประเทศใดมีอ่าวไทยอยู่ใกล้กับชายฝั่งตะวันออกของประเทศ?",
+      answer: "กัมพูชา",
+      options: ["กัมพูชา", "ลาว", "เมียนมา", "เนปาล"],
+      fact: "กัมพูชามีชายฝั่งติดอ่าวไทย"
+    }
+  ];
+
+  // ============================================================
+  // DOM
+  // ============================================================
+  const video = document.getElementById("camera");
+  const canvas = document.getElementById("gameCanvas");
+  const ctx = canvas.getContext("2d");
+  const app = document.getElementById("app");
+
+  const startModal = document.getElementById("startModal");
+  const pauseModal = document.getElementById("pauseModal");
+  const victoryModal = document.getElementById("victoryModal");
+  const browserModal = document.getElementById("browserModal");
+
+  const startBtn = document.getElementById("startBtn");
+  const pauseBtn = document.getElementById("pauseBtn");
+  const resumeBtn = document.getElementById("resumeBtn");
+  const restartBtn = document.getElementById("restartBtn");
+  const browserOk = document.getElementById("browserOk");
+
+  const cameraDot = document.getElementById("cameraDot");
+  const cameraError = document.getElementById("cameraError");
+
+  const scoreText = document.getElementById("scoreText");
+  const correctText = document.getElementById("correctText");
+  const comboText = document.getElementById("comboText");
+  const questionText = document.getElementById("questionText");
+  const hintText = document.getElementById("hintText");
+  const finalScore = document.getElementById("finalScore");
+  const maxCombo = document.getElementById("maxCombo");
+  const learningSummary = document.getElementById("learningSummary");
+
+  // ============================================================
+  // STATE
+  // ============================================================
+  let W = window.innerWidth;
+  let H = window.innerHeight;
+
+  let running = false;
+  let paused = false;
+  let cameraReady = false;
+  let handsReady = false;
+  let lastFrame = performance.now();
+  let lastHand = null;
+  let palmVisible = false;
+  let palmCenter = null;
+  let palmOpen = false;
+
+  let questions = [];
+  let currentQuestion = null;
+  let questionIndex = 0;
+  let correctCount = 0;
+  let score = 0;
+  let combo = 0;
+  let maxComboValue = 0;
+
+  let cards = [];
+  let particles = [];
+  let floatingTexts = [];
+
+  let lockTarget = null;
+  let lockStart = 0;
+  let lastLockSound = 0;
+
+  let audioCtx = null;
+
+  // ============================================================
+  // UTILS
+  // ============================================================
+  function resizeCanvas() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.floor(W * dpr);
+    canvas.height = Math.floor(H * dpr);
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  window.addEventListener("resize", resizeCanvas);
+  resizeCanvas();
+
+  function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function clamp(v, min, max) {
+    return Math.max(min, Math.min(max, v));
+  }
+
+  function distance(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  function showModal(el) {
+    el.classList.remove("hidden-modal");
+  }
+
+  function hideModal(el) {
+    el.classList.add("hidden-modal");
+  }
+
+  // ============================================================
+  // AUDIO SYNTH — no external audio files
+  // ============================================================
+  function ensureAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === "suspended") audioCtx.resume();
+  }
+
+  function tone(freq, duration, type = "sine", volume = 0.04, when = 0) {
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime + when;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, now);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(volume, now + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + duration + 0.03);
+  }
+
+  function chargeSound(progress) {
+    if (!audioCtx) return;
+    const now = performance.now();
+    if (now - lastLockSound < 95) return;
+    lastLockSound = now;
+    const f = 240 + progress * 760;
+    tone(f, 0.08, "sine", 0.025);
+  }
+
+  function correctSound() {
+    tone(420, .09, "triangle", .06);
+    tone(650, .12, "triangle", .055, .07);
+    tone(920, .22, "sine", .045, .14);
+  }
+
+  function wrongSound() {
+    tone(190, .16, "sawtooth", .035);
+    tone(120, .22, "sawtooth", .025, .10);
+  }
+
+  function winSound() {
+    [523, 659, 784, 1047].forEach((f, i) => tone(f, .22, "triangle", .055, i * .11));
+  }
+
+  function shootSound() {
+    tone(130, .07, "sine", .045);
+    tone(70, .25, "sine", .03, .04);
+  }
+
+  // ============================================================
+  // QUESTIONS
+  // ============================================================
+  function prepareQuestions() {
+    questions = shuffle(QUESTION_BANK).slice(0, 8);
+    questionIndex = 0;
+    currentQuestion = questions[0];
+    updateQuestionUI();
+  }
+
+  function updateQuestionUI() {
+    if (!currentQuestion) return;
+    questionText.textContent = currentQuestion.q;
+    hintText.textContent =
+      `ข้อ ${correctCount + 1} / 8 • เลือกการ์ดคำตอบที่ถูกต้อง — ไม่มีสีช่วยใบ้คำตอบ`;
+  }
+
+  function makeCards() {
+    cards = [];
+
+    const answers = shuffle(currentQuestion.options);
+
+    // 4 cards, one correct + 3 distractors
+    answers.forEach((word, i) => {
+      cards.push({
+        id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36),
+        text: word,
+        x: W * (0.13 + i * 0.25) + (Math.random() * 30 - 15),
+        y: H + 100 + Math.random() * 250,
+        baseX: W * (0.13 + i * 0.25),
+        speed: 15 + Math.random() * 10,
+        phase: Math.random() * Math.PI * 2,
+        width: Math.min(230, W * .22),
+        height: 92,
+        rotation: (Math.random() - .5) * .05,
+        hit: false,
+        correct: word === currentQuestion.answer
+      });
+    });
+  }
+
+  function nextQuestion() {
+    questionIndex++;
+    if (questionIndex >= questions.length) {
+      victory();
+      return;
+    }
+
+    currentQuestion = questions[questionIndex];
+    updateQuestionUI();
+    makeCards();
+    lockTarget = null;
+  }
+
+  // ============================================================
+  // MEDIA PIPE HANDS
+  // ============================================================
+  let hands;
+  let camera;
+
+  function setupHands() {
+    hands = new Hands({
+      locateFile: (file) =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.55,
+      minTrackingConfidence: 0.55
+    });
+
+    hands.onResults(onHandResults);
+    handsReady = true;
+  }
+
+  function isPalmOpen(lm) {
+    // ตรวจแบบง่ายสำหรับเด็ก: ปลายนิ้วต้องอยู่ไกลจากข้อมือ
+    const wrist = lm[0];
+    const fingers = [
+      [8, 6],   // index
+      [12, 10], // middle
+      [16, 14], // ring
+      [20, 18]  // pinky
+    ];
+
+    let extended = 0;
+    for (const [tip, pip] of fingers) {
+      if (distance(lm[tip], wrist) > distance(lm[pip], wrist) * 1.08) {
+        extended++;
+      }
+    }
+
+    return extended >= 3;
+  }
+
+  function onHandResults(results) {
+    if (!running || paused) return;
+
+    if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+      lastHand = null;
+      palmVisible = false;
+      palmCenter = null;
+      palmOpen = false;
+      return;
+    }
+
+    const raw = results.multiHandLandmarks[0];
+
+    // Mirror x เพื่อให้ตรงกับ video ที่ scaleX(-1)
+    const lm = raw.map(p => ({
+      x: 1 - p.x,
+      y: p.y,
+      z: p.z
+    }));
+
+    lastHand = lm;
+    palmVisible = true;
+    palmOpen = isPalmOpen(lm);
+
+    const wrist = lm[0];
+    const indexMcp = lm[5];
+    const pinkyMcp = lm[17];
+
+    const px = (wrist.x + indexMcp.x + pinkyMcp.x) / 3;
+    const py = (wrist.y + indexMcp.y + pinkyMcp.y) / 3;
+
+    palmCenter = {
+      x: px * W,
+      y: py * H
+    };
+  }
+
+  async function startCamera() {
+    try {
+      ensureAudio();
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Camera API unavailable");
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "user",
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      });
+
+      video.srcObject = stream;
+      await video.play();
+
+      cameraReady = true;
+      cameraDot.classList.add("live");
+      cameraError.classList.add("hidden");
+
+      if (!handsReady) setupHands();
+
+      camera = new Camera(video, {
+        onFrame: async () => {
+          if (running && !paused && handsReady) {
+            await hands.send({ image: video });
+          }
+        },
+        width: 1280,
+        height: 720
+      });
+
+      camera.start();
+
+      return true;
+    } catch (err) {
+      console.error(err);
+      cameraError.classList.remove("hidden");
+      return false;
+    }
+  }
+
+  // ============================================================
+  // DRAWING
+  // ============================================================
+  function drawHand() {
+    if (!lastHand || !palmVisible) return;
+
+    ctx.save();
+
+    // กระดูกมือ
+    const connections = [
+      [0,1],[1,2],[2,3],[3,4],
+      [0,5],[5,6],[6,7],[7,8],
+      [0,9],[9,10],[10,11],[11,12],
+      [0,13],[13,14],[14,15],[15,16],
+      [0,17],[17,18],[18,19],[19,20],
+      [5,9],[9,13],[13,17]
+    ];
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(0,240,255,.72)";
+    ctx.shadowColor = "rgba(0,240,255,.9)";
+    ctx.shadowBlur = 12;
+
+    for (const [a,b] of connections) {
+      ctx.beginPath();
+      ctx.moveTo(lastHand[a].x * W, lastHand[a].y * H);
+      ctx.lineTo(lastHand[b].x * W, lastHand[b].y * H);
+      ctx.stroke();
+    }
+
+    ctx.shadowBlur = 0;
+    for (const p of lastHand) {
+      ctx.beginPath();
+      ctx.arc(p.x * W, p.y * H, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(190,250,255,.95)";
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  function drawRasengan(cx, cy, t) {
+    const pulse = 1 + Math.sin(t * 0.012) * 0.08;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    // aura
+    const aura = ctx.createRadialGradient(0,0,2,0,0,75);
+    aura.addColorStop(0, "rgba(255,255,255,.95)");
+    aura.addColorStop(.12, "rgba(0,240,255,.8)");
+    aura.addColorStop(.5, "rgba(0,150,255,.22)");
+    aura.addColorStop(1, "rgba(0,240,255,0)");
+    ctx.fillStyle = aura;
+    ctx.beginPath();
+    ctx.arc(0,0,75*pulse,0,Math.PI*2);
+    ctx.fill();
+
+    // rotating rings
+    for (let i=0; i<3; i++) {
+      ctx.save();
+      ctx.rotate(t * (0.0012 + i*.0006) * (i % 2 ? -1 : 1));
+      ctx.strokeStyle = `rgba(0,240,255,${.85 - i*.15})`;
+      ctx.lineWidth = 3 - i*.45;
+      ctx.setLineDash([12, 8]);
+      ctx.beginPath();
+      ctx.ellipse(0,0,32+i*8,18+i*9, i*.8, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // core
+    const core = ctx.createRadialGradient(-5,-7,2,0,0,25);
+    core.addColorStop(0, "#ffffff");
+    core.addColorStop(.15, "#d9ffff");
+    core.addColorStop(.45, "#00f0ff");
+    core.addColorStop(1, "#0284c7");
+
+    ctx.fillStyle = core;
+    ctx.shadowColor = "#00f0ff";
+    ctx.shadowBlur = 28;
+    ctx.beginPath();
+    ctx.arc(0,0,21*pulse,0,Math.PI*2);
+    ctx.fill();
+
+    // lightning sparks
+    ctx.shadowBlur = 10;
+    ctx.strokeStyle = "rgba(255,255,255,.9)";
+    ctx.lineWidth = 1.5;
+
+    for (let i=0; i<5; i++) {
+      const a = t*.003 + i*1.25;
+      const r1 = 24;
+      const r2 = 38 + ((Math.sin(t*.01+i)*.5+.5)*12);
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a)*r1, Math.sin(a)*r1);
+      ctx.lineTo(Math.cos(a+.16)*r2, Math.sin(a+.16)*r2);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  function roundedRectPath(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr,y);
+    ctx.arcTo(x+w,y,x+w,y+h,rr);
+    ctx.arcTo(x+w,y+h,x,y+h,rr);
+    ctx.arcTo(x,y+h,x,y,rr);
+    ctx.arcTo(x,y,x+w,y,rr);
+    ctx.closePath();
+  }
+
+  function drawCard(card, t) {
+    if (card.hit) return;
+
+    const bob = Math.sin(t*.0015 + card.phase) * 7;
+    const x = card.x;
+    const y = card.y + bob;
+    const w = card.width;
+    const h = card.height;
+
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.rotate(card.rotation);
+
+    // shadow
+    ctx.shadowColor = "rgba(0,0,0,.42)";
+    ctx.shadowBlur = 25;
+    ctx.shadowOffsetY = 12;
+
+    const grad = ctx.createLinearGradient(-w/2,-h/2,w/2,h/2);
+    grad.addColorStop(0, "#ffffff");
+    grad.addColorStop(.5, "#f8fafc");
+    grad.addColorStop(1, "#e2e8f0");
+
+    roundedRectPath(ctx, -w/2,-h/2,w,h,24);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "rgba(15,23,42,.12)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // subtle clay highlight
+    ctx.fillStyle = "rgba(255,255,255,.7)";
+    ctx.beginPath();
+    ctx.ellipse(-w*.25,-h*.28,w*.18,h*.08,0,0,Math.PI*2);
+    ctx.fill();
+
+    // text
+    ctx.fillStyle = "#0f172a";
+    ctx.font = `700 ${Math.max(17, Math.min(24, w*.105))}px Kanit, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // wrap
+    const words = card.text.split(" ");
+    if (card.text.length > 18 || words.length > 2) {
+      const lines = [];
+      let line = "";
+      for (const ch of card.text) {
+        if (line.length >= 11) {
+          lines.push(line);
+          line = "";
+        }
+        line += ch;
+      }
+      if (line) lines.push(line);
+      const shown = lines.slice(0,3);
+      shown.forEach((ln,i) => {
+        ctx.fillText(ln,0,(i-(shown.length-1)/2)*27);
+      });
+    } else {
+      ctx.fillText(card.text,0,0);
+    }
+
+    ctx.restore();
+
+    // lock-on
+    if (lockTarget === card) {
+      const p = clamp((performance.now() - lockStart) / 1000, 0, 1);
+      drawLockOn(x, y + bob, Math.max(w,h)*.48, p);
+    }
+  }
+
+  function drawLockOn(x,y,r,p) {
+    ctx.save();
+    ctx.translate(x,y);
+
+    ctx.strokeStyle = "rgba(250,204,21,.9)";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([9,8]);
+    ctx.lineDashOffset = -performance.now()*.035;
+    ctx.beginPath();
+    ctx.arc(0,0,r,0,Math.PI*2);
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = "rgba(255,255,255,.12)";
+    ctx.beginPath();
+    ctx.arc(0,0,r+10,0,Math.PI*2);
+    ctx.stroke();
+
+    ctx.strokeStyle = "#facc15";
+    ctx.shadowColor = "#facc15";
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(0,0,r+10,-Math.PI/2,-Math.PI/2 + Math.PI*2*p);
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#fff";
+    ctx.font = "700 12px Kanit";
+    ctx.textAlign = "center";
+    ctx.fillText(`CHARGE ${Math.floor(p*100)}%`,0,r+30);
+
+    ctx.restore();
+  }
+
+  function drawParticles() {
+    for (const p of particles) {
+      ctx.save();
+      ctx.globalAlpha = p.life / p.maxLife;
+      ctx.translate(p.x,p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = p.glow || 0;
+      ctx.fillRect(-p.size/2,-p.size/2,p.size,p.size);
+      ctx.restore();
+    }
+  }
+
+  // ============================================================
+  // FX
+  // ============================================================
+  function spawnExplosion(x,y,good=true) {
+    const color = good ? "#00f0ff" : "#f43f5e";
+    for (let i=0; i<(good ? 80 : 45); i++) {
+      const a = Math.random()*Math.PI*2;
+      const s = (good ? 100 : 75) + Math.random()*330;
+      particles.push({
+        x, y,
+        vx: Math.cos(a)*s,
+        vy: Math.sin(a)*s,
+        size: 2+Math.random()*6,
+        color,
+        life: 550+Math.random()*650,
+        maxLife: 1200,
+        rot: Math.random()*Math.PI,
+        vr: (Math.random()-.5)*.2,
+        glow: good ? 15 : 7
+      });
+    }
+
+    for (let i=0; i<10; i++) {
+      particles.push({
+        x, y,
+        vx: (Math.random()-.5)*90,
+        vy: (Math.random()-.5)*90,
+        size: 8+Math.random()*18,
+        color: "#ffffff",
+        life: 250+Math.random()*350,
+        maxLife: 600,
+        rot: 0,
+        vr: 0,
+        glow: 20
+      });
+    }
+  }
+
+  function updateParticles(dt) {
+    for (let i=particles.length-1; i>=0; i--) {
+      const p = particles[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vx *= Math.pow(.002, dt);
+      p.vy *= Math.pow(.002, dt);
+      p.vy += 80*dt;
+      p.rot += p.vr;
+      p.life -= dt*1000;
+      if (p.life <= 0) particles.splice(i,1);
+    }
+  }
+
+  function addFloatingText(text,x,y,color="#22c55e") {
+    floatingTexts.push({
+      text,x,y,color,
+      life: 1000,
+      maxLife: 1000
+    });
+  }
+
+  function updateFloatingTexts(dt) {
+    for (let i=floatingTexts.length-1; i>=0; i--) {
+      const f = floatingTexts[i];
+      f.y -= 45*dt;
+      f.life -= dt*1000;
+      if (f.life <= 0) floatingTexts.splice(i,1);
+    }
+  }
+
+  function drawFloatingTexts() {
+    for (const f of floatingTexts) {
+      ctx.save();
+      ctx.globalAlpha = f.life/f.maxLife;
+      ctx.fillStyle = f.color;
+      ctx.shadowColor = f.color;
+      ctx.shadowBlur = 12;
+      ctx.font = "800 28px Kanit";
+      ctx.textAlign = "center";
+      ctx.fillText(f.text,f.x,f.y);
+      ctx.restore();
+    }
+  }
+
+  // ============================================================
+  // GAME LOGIC
+  // ============================================================
+  function getCardCenter(card) {
+    const bob = Math.sin(performance.now()*.0015 + card.phase) * 7;
+    return { x: card.x, y: card.y + bob };
+  }
+
+  function findLockTarget() {
+    if (!palmCenter || !palmOpen) return null;
+
+    let nearest = null;
+    let best = Infinity;
+
+    for (const card of cards) {
+      if (card.hit) continue;
+      const c = getCardCenter(card);
+      const d = distance(palmCenter,c);
+      const radius = Math.max(card.width, card.height)*.5 + 40;
+
+      if (d < radius && d < best) {
+        best = d;
+        nearest = card;
+      }
+    }
+
+    return nearest;
+  }
+
+  function resolveShot(card) {
+    if (!card || card.hit) return;
+
+    shootSound();
+
+    const c = getCardCenter(card);
+    spawnExplosion(c.x,c.y,card.correct);
+
+    if (card.correct) {
+      correctSound();
+      card.hit = true;
+      correctCount++;
+      combo++;
+      maxComboValue = Math.max(maxComboValue, combo);
+
+      const bonus = combo >= 2 ? (combo-1)*25 : 0;
+      const gained = 100 + bonus;
+      score += gained;
+
+      addFloatingText(`+${gained}`,c.x,c.y-15,"#22c55e");
+      if (combo >= 2) addFloatingText(`COMBO x${combo}`,c.x,c.y+25,"#facc15");
+
+      updateHUD();
+
+      setTimeout(() => {
+        if (!running) return;
+        nextQuestion();
+      }, 700);
+
+    } else {
+      wrongSound();
+      combo = 0;
+      addFloatingText("ยังไม่ใช่~",c.x,c.y,"#fb7185");
+      updateHUD();
+
+      // ให้การ์ดผิดเด้งกลับ ไม่ถูกทำลาย
+      card.y = Math.max(card.y - 60, H*.25);
+    }
+  }
+
+  function updateCards(dt) {
+    for (const card of cards) {
+      if (card.hit) continue;
+      card.y -= card.speed * dt;
+
+      if (card.y < -150) {
+        card.y = H + 130 + Math.random()*120;
+        card.x = clamp(
+          W*(.1 + Math.random()*.8),
+          card.width/2 + 10,
+          W-card.width/2-10
+        );
+      }
+    }
+  }
+
+  function updateLock() {
+    if (!running || paused || !palmOpen || !palmCenter) {
+      lockTarget = null;
+      return;
+    }
+
+    const target = findLockTarget();
+
+    if (target !== lockTarget) {
+      lockTarget = target;
+      lockStart = performance.now();
+    }
+
+    if (lockTarget) {
+      const progress = clamp((performance.now()-lockStart)/1000,0,1);
+      chargeSound(progress);
+
+      if (progress >= 1) {
+        const shot = lockTarget;
+        lockTarget = null;
+        lockStart = performance.now();
+        resolveShot(shot);
+      }
+    }
+  }
+
+  function updateHUD() {
+    scoreText.textContent = score.toLocaleString();
+    correctText.textContent = correctCount;
+    comboText.textContent = combo + "x";
+  }
+
+  // ============================================================
+  // GAME LOOP
+  // ============================================================
+  function draw(t) {
+    ctx.clearRect(0,0,W,H);
+
+    if (running && !paused) {
+      drawHand();
+
+      for (const card of cards) {
+        drawCard(card,t);
+      }
+
+      if (palmCenter && palmOpen) {
+        drawRasengan(palmCenter.x,palmCenter.y,t);
+      }
+
+      drawParticles();
+      drawFloatingTexts();
+    } else {
+      drawParticles();
+      drawFloatingTexts();
+    }
+  }
+
+  function loop(now) {
+    const dt = Math.min((now-lastFrame)/1000, .04);
+    lastFrame = now;
+
+    if (running && !paused) {
+      updateCards(dt);
+      updateLock();
+      updateParticles(dt);
+      updateFloatingTexts(dt);
+    } else {
+      updateParticles(dt);
+      updateFloatingTexts(dt);
+    }
+
+    draw(now);
+    requestAnimationFrame(loop);
+  }
+
+  // ============================================================
+  // START / PAUSE / VICTORY
+  // ============================================================
+  async function startGame() {
+    ensureAudio();
+
+    const ok = await startCamera();
+    if (!ok) return;
+
+    hideModal(startModal);
+    hideModal(browserModal);
+
+    running = true;
+    paused = false;
+
+    score = 0;
+    correctCount = 0;
+    combo = 0;
+    maxComboValue = 0;
+    particles = [];
+    floatingTexts = [];
+    lockTarget = null;
+
+    prepareQuestions();
+    makeCards();
+    updateHUD();
+
+    tone(440,.08,"triangle",.05);
+    tone(660,.14,"triangle",.05,.08);
+  }
+
+  function pauseGame() {
+    if (!running) return;
+    paused = true;
+    showModal(pauseModal);
+  }
+
+  function resumeGame() {
+    paused = false;
+    hideModal(pauseModal);
+    ensureAudio();
+  }
+
+  function victory() {
+    running = false;
+    paused = false;
+
+    finalScore.textContent = score.toLocaleString();
+    maxCombo.textContent = maxComboValue + "x";
+
+    learningSummary.innerHTML = `
+      <div class="font-kanit font-bold text-white mb-2">
+        <i class="fa-solid fa-book-open text-cyan-300 mr-1"></i>
+        สิ่งที่ได้เรียนรู้
+      </div>
+      <div class="leading-relaxed">
+        รู้จักประเทศเพื่อนบ้านของไทย เมืองหลวง ลักษณะภูมิศาสตร์
+        และความสัมพันธ์ทางประวัติศาสตร์และวัฒนธรรมในภูมิภาคเอเชียตะวันออกเฉียงใต้
+      </div>
+    `;
+
+    showModal(victoryModal);
+    winSound();
+
+    if (typeof confetti === "function") {
+      const duration = 2800;
+      const end = Date.now() + duration;
+
+      (function frame() {
+        confetti({
+          particleCount: 5,
+          angle: 60,
+          spread: 65,
+          origin: { x: 0 }
+        });
+        confetti({
+          particleCount: 5,
+          angle: 120,
+          spread: 65,
+          origin: { x: 1 }
+        });
+        if (Date.now() < end) requestAnimationFrame(frame);
+      })();
+    }
+  }
+
+  function restartGame() {
+    hideModal(victoryModal);
+    startGame();
+  }
+
+  // ============================================================
+  // EVENTS
+  // ============================================================
+  startBtn.addEventListener("click", startGame);
+  pauseBtn.addEventListener("click", pauseGame);
+  resumeBtn.addEventListener("click", resumeGame);
+  restartBtn.addEventListener("click", restartGame);
+  browserOk.addEventListener("click", () => hideModal(browserModal));
+
+  // Detect file:// early
+  if (location.protocol === "file:") {
+    setTimeout(() => showModal(browserModal), 500);
+  }
+
+  // Initial
+  setupHands();
+  prepareQuestions();
+  updateHUD();
+  requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
